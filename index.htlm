@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portfolio BNB - MetaMask</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #f3ba2f 0%, #121212 100%); 
+            color: #fff; 
+            padding: 20px; 
+            min-height: 100vh; 
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { 
+            background: rgba(0,0,0,0.8); 
+            padding: 40px; 
+            border-radius: 20px; 
+            margin-bottom: 20px; 
+            border: 3px solid #f3ba2f; 
+            box-shadow: 0 10px 40px rgba(243, 186, 47, 0.3);
+        }
+        h1 { font-size: 3em; margin-bottom: 10px; text-align: center; }
+        .status { 
+            text-align: center; 
+            padding: 25px; 
+            background: rgba(255,255,255,0.1); 
+            border-radius: 15px; 
+            margin: 25px 0; 
+            font-size: 1.2em;
+        }
+        .status.connected { 
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(16, 185, 129, 0.1)); 
+            border: 3px solid #10b981; 
+        }
+        .status.disconnected { 
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.1)); 
+            border: 3px solid #ef4444; 
+        }
+        button { 
+            background: linear-gradient(135deg, #f3ba2f 0%, #d4a02a 100%); 
+            color: #000; 
+            border: none; 
+            padding: 20px 50px; 
+            border-radius: 15px; 
+            font-size: 1.3em; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            box-shadow: 0 5px 20px rgba(243, 186, 47, 0.4);
+        }
+        button:hover { 
+            transform: translateY(-3px); 
+            box-shadow: 0 8px 30px rgba(243, 186, 47, 0.6); 
+        }
+        button:active { transform: translateY(-1px); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-disconnect { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; }
+        .wallet-info { 
+            background: rgba(0,0,0,0.6); 
+            padding: 25px; 
+            border-radius: 15px; 
+            margin-top: 25px; 
+            border: 2px solid rgba(243, 186, 47, 0.3);
+        }
+        .info-row { 
+            display: flex; 
+            justify-content: space-between; 
+            padding: 15px 0; 
+            border-bottom: 1px solid rgba(255,255,255,0.1); 
+            font-size: 1.1em;
+        }
+        .info-row:last-child { border-bottom: none; }
+        .label { color: #cbd5e1; }
+        .value { color: #f3ba2f; font-weight: bold; font-family: monospace; word-break: break-all; }
+        .message { padding: 20px; border-radius: 10px; margin: 15px 0; text-align: center; font-weight: bold; }
+        .error { background: rgba(239, 68, 68, 0.3); border: 2px solid #ef4444; }
+        .success { background: rgba(16, 185, 129, 0.3); border: 2px solid #10b981; }
+        .warning { background: rgba(245, 158, 11, 0.3); border: 2px solid #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💼 Portfolio BNB</h1>
+            <div id="status" class="status disconnected">
+                <h2>🔌 Wallet non connecté</h2>
+                <p>Connectez MetaMask pour accéder à votre portfolio BNB</p>
+            </div>
+            <div style="text-align: center; margin: 30px 0;">
+                <button id="connectBtn" onclick="connectMetaMask()">
+                    🦊 Connecter MetaMask
+                </button>
+                <button id="disconnectBtn" onclick="disconnect()" class="btn-disconnect" style="display: none;">
+                    ❌ Déconnecter
+                </button>
+            </div>
+            <div id="walletInfo" class="wallet-info" style="display: none;">
+                <div class="info-row">
+                    <span class="label">🔑 Adresse:</span>
+                    <span class="value" id="walletAddress">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">🌐 Réseau:</span>
+                    <span class="value" id="network">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">💰 Solde:</span>
+                    <span class="value" id="balance">-</span>
+                </div>
+            </div>
+            <div id="message"></div>
+        </div>
+    </div>
+    <script>
+        let currentAccount = null;
+        
+        window.addEventListener('load', function() {
+            if (typeof window.ethereum !== 'undefined') {
+                console.log('✅ MetaMask détecté - Hébergé sur serveur web');
+                window.ethereum.on('accountsChanged', handleAccountsChanged);
+                window.ethereum.on('chainChanged', () => window.location.reload());
+            } else {
+                showMessage('⚠️ MetaMask non installé! Installez-le depuis https://metamask.io', 'error');
+            }
+        });
+
+        async function connectMetaMask() {
+            if (typeof window.ethereum === 'undefined') {
+                alert('❌ MetaMask non installé!\\n\\nInstallez MetaMask depuis:\\nhttps://metamask.io/download/');
+                window.open('https://metamask.io/download/', '_blank');
+                return;
+            }
+
+            try {
+                showMessage('🔄 Demande de connexion envoyée à MetaMask...', 'warning');
+                console.log('Demande eth_requestAccounts...');
+                
+                const accounts = await window.ethereum.request({ 
+                    method: 'eth_requestAccounts' 
+                });
+                
+                console.log('✅ Comptes reçus:', accounts);
+                
+                if (accounts.length === 0) {
+                    showMessage('❌ Aucun compte sélectionné', 'error');
+                    return;
+                }
+
+                currentAccount = accounts[0];
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                const balanceWei = await window.ethereum.request({
+                    method: 'eth_getBalance',
+                    params: [currentAccount, 'latest']
+                });
+                
+                const balance = parseInt(balanceWei, 16) / 1e18;
+                updateUI(currentAccount, chainId, balance);
+                showMessage('✅ Connexion réussie!', 'success');
+
+            } catch (error) {
+                console.error('❌ Erreur:', error);
+                
+                if (error.code === 4001) {
+                    showMessage('❌ Connexion refusée par l\\'utilisateur', 'error');
+                } else if (error.code === -32002) {
+                    showMessage('⚠️ Demande déjà en attente - Ouvrez MetaMask', 'warning');
+                } else {
+                    showMessage('❌ Erreur: ' + error.message, 'error');
+                }
+            }
+        }
+
+        function updateUI(account, chainId, balance) {
+            document.getElementById('status').className = 'status connected';
+            document.getElementById('status').innerHTML = '<h2>✅ Wallet connecté</h2>';
+            document.getElementById('connectBtn').style.display = 'none';
+            document.getElementById('disconnectBtn').style.display = 'inline-block';
+            document.getElementById('walletInfo').style.display = 'block';
+            
+            document.getElementById('walletAddress').textContent = 
+                account.substring(0, 6) + '...' + account.substring(38);
+            
+            const networks = {
+                '0x1': 'Ethereum Mainnet',
+                '0x38': 'BSC Mainnet ✅',
+                '0x89': 'Polygon',
+                '0x61': 'BSC Testnet'
+            };
+            
+            const networkName = networks[chainId] || 'Chain ' + parseInt(chainId, 16);
+            document.getElementById('network').textContent = networkName;
+            
+            const currency = chainId === '0x38' ? 'BNB' : 'ETH';
+            document.getElementById('balance').textContent = balance.toFixed(6) + ' ' + currency;
+            
+            if (chainId !== '0x38') {
+                showMessage('⚠️ Vous êtes sur ' + networkName + '. Changez pour BSC Mainnet pour utiliser BNB', 'warning');
+            }
+        }
+
+        function disconnect() {
+            currentAccount = null;
+            document.getElementById('status').className = 'status disconnected';
+            document.getElementById('status').innerHTML = '<h2>🔌 Wallet non connecté</h2><p>Connectez MetaMask pour accéder</p>';
+            document.getElementById('connectBtn').style.display = 'inline-block';
+            document.getElementById('disconnectBtn').style.display = 'none';
+            document.getElementById('walletInfo').style.display = 'none';
+            document.getElementById('message').innerHTML = '';
+        }
+
+        function handleAccountsChanged(accounts) {
+            if (accounts.length === 0) {
+                disconnect();
+            } else {
+                connectMetaMask();
+            }
+        }
+
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.className = 'message ' + type;
+            msg.textContent = text;
+            setTimeout(() => msg.innerHTML = '', 6000);
+        }
+    </script>
+</body>
+</html>
